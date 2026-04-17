@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dublin Solar Radiation Forecast — Live</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; max-width: 1100px; margin: 2em auto; padding: 0 1em; color: #222; }
+  h1 { margin-bottom: 0.2em; }
+  h2 { margin-top: 2em; }
+  .subtitle { color: #666; margin-top: 0; }
+  .header-bar { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.6em; margin: 1em 0; }
+  .status { font-size: 0.9em; color: #555; }
+  .status .dot { display: inline-block; width: 0.7em; height: 0.7em; border-radius: 50%; margin-right: 0.4em; vertical-align: middle; }
+  .status.loading .dot { background: #f5a623; animation: pulse 1s infinite alternate; }
+  .status.ok .dot { background: #28a745; }
+  .status.err .dot { background: #d73a49; }
+  @keyframes pulse { from { opacity: 0.4; } to { opacity: 1; } }
+  button { font: inherit; padding: 0.45em 1em; border: 1px solid #0366d6; background: #0366d6; color: #fff; border-radius: 4px; cursor: pointer; }
+  button:hover { background: #024ea4; }
+  button:disabled { opacity: 0.6; cursor: not-allowed; }
+  .chart-wrap { position: relative; height: 360px; margin: 1em 0 2em; }
+  table { border-collapse: collapse; width: 100%; font-size: 0.9em; margin-top: 1em; }
+  th, td { border: 1px solid #ddd; padding: 6px 10px; text-align: right; }
+  th { background: #f5f5f5; text-align: center; }
+  td:first-child, th:first-child { text-align: left; }
+  footer { margin-top: 3em; padding-top: 1em; border-top: 1px solid #ddd; font-size: 0.85em; color: #555; }
+  footer a { color: #0366d6; word-break: break-all; }
+  .today { background: #e7f3ff; padding: 0.8em 1em; border-radius: 4px; margin: 1em 0; }
+  .today strong { color: #0366d6; }
+  .error-box { background: #ffe9ec; border: 1px solid #f5a8b3; padding: 1em 1.2em; border-radius: 4px; margin: 1em 0; color: #86181d; }
+  .error-box pre { white-space: pre-wrap; word-break: break-word; margin: 0.6em 0 0; font-size: 0.85em; }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+
+<h1>Dublin Solar Radiation Forecast</h1>
+<p class="subtitle">Live 16-day outlook · 53.3498°N, -6.2603°E</p>
+
+<div class="header-bar">
+  <div class="status loading" id="status"><span class="dot"></span><span id="statusText">Loading…</span></div>
+  <button id="refreshBtn" disabled>Refresh</button>
+</div>
+
+<div class="today hidden" id="todaySummary"></div>
+
+<div class="error-box hidden" id="errorBox"></div>
+
+<div id="content" class="hidden">
+  <h2>Daily Global Horizontal Irradiation (GHI)</h2>
+  <div class="chart-wrap"><canvas id="ghiChart"></canvas></div>
+
+  <h2>Sunshine Duration &amp; UV Index Max</h2>
+  <div class="chart-wrap"><canvas id="sunUvChart"></canvas></div>
+
+  <h2>Daily Temperature Range</h2>
+  <div class="chart-wrap"><canvas id="tempChart"></canvas></div>
+
+  <h2>Raw Forecast Data</h2>
+  <table id="dataTable">
+    <thead>
+      <tr>
+        <th>Date</th>
+        <th>GHI (MJ/m²)</th>
+        <th>GHI (kWh/m²)</th>
+        <th>Sunshine (h)</th>
+        <th>UV max</th>
+        <th>Temp max (°C)</th>
+        <th>Temp min (°C)</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+</div>
+
+<footer>
+  <p><strong>Sources:</strong>
+    <a id="sourceLink" href="#">Open-Meteo forecast request</a>
+    ·
+    <a href="https://en.tutiempo.net/solar-radiation/dublin.html">Tu Tiempo — Dublin solar radiation reference</a>
+  </p>
+  <p><strong>Fetched:</strong> <span id="fetchedAt">—</span></p>
+  <p id="metaLine"><strong>Timezone:</strong> — · <strong>Elevation:</strong> — · <strong>Grid:</strong> —</p>
+  <p>Open-Meteo combines multiple national weather models (ECMWF, DWD ICON, NCEP GFS, UK Met Office, and others) into a best-match 16-day forecast blend.</p>
+  <p>Weather data by <a href="https://open-meteo.com">Open-Meteo.com</a> (CC-BY 4.0).</p>
+</footer>
+
+<script>
+const API_URL = 'https://api.open-meteo.com/v1/forecast?latitude=53.3498&longitude=-6.2603&daily=shortwave_radiation_sum,sunshine_duration,uv_index_max,temperature_2m_max,temperature_2m_min&timezone=Europe%2FDublin&forecast_days=16';
+
+document.getElementById('sourceLink').href = API_URL;
+
+const fmtDay = new Intl.DateTimeFormat('en-GB', { day: 'numeric', weekday: 'short' });
+const labelFor = iso => {
+  const parts = fmtDay.formatToParts(new Date(iso + 'T00:00:00'));
+  const day = parts.find(p => p.type === 'day').value;
+  const weekday = parts.find(p => p.type === 'weekday').value;
+  return `${day} ${weekday}`;
+};
+
+const fmtDublinStamp = () => {
+  try {
+    return new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Europe/Dublin',
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', second: '2-digit',
+      timeZoneName: 'short', hour12: false
+    }).format(new Date());
+  } catch (e) {
+    return new Date().toISOString();
+  }
+};
+
+let charts = { ghi: null, sunUv: null, temp: null };
+
+function setStatus(kind, text) {
+  const el = document.getElementById('status');
+  el.className = 'status ' + kind;
+  document.getElementById('statusText').textContent = text;
+}
+
+function showError(step, err, partial) {
+  const box = document.getElementById('errorBox');
+  box.classList.remove('hidden');
+  const details = [
+    `Step: ${step}`,
+    `Error: ${err && err.message ? err.message : String(err)}`,
+    `Request URL: ${API_URL}`,
+    `Time: ${fmtDublinStamp()}`,
+    partial ? `Partial data: ${JSON.stringify(partial).slice(0, 500)}` : ''
+  ].filter(Boolean).join('\n');
+  box.innerHTML = `<strong>Fetch failed.</strong><pre></pre>`;
+  box.querySelector('pre').textContent = details;
+  setStatus('err', 'Fetch failed — see details');
+}
+
+function clearError() {
+  document.getElementById('errorBox').classList.add('hidden');
+}
+
+async function fetchForecast() {
+  const btn = document.getElementById('refreshBtn');
+  btn.disabled = true;
+  setStatus('loading', 'Fetching Open-Meteo…');
+  clearError();
+
+  let json;
+  try {
+    const resp = await fetch(API_URL, { cache: 'no-store' });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status} ${resp.statusText}`);
+    json = await resp.json();
+  } catch (err) {
+    showError('fetch', err);
+    btn.disabled = false;
+    return;
+  }
+
+  try {
+    render(json);
+    setStatus('ok', `Loaded at ${fmtDublinStamp()}`);
+  } catch (err) {
+    showError('parse/render', err, json && json.daily ? { keys: Object.keys(json.daily) } : null);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function render(json) {
+  const daily = json.daily || {};
+  const time = daily.time || [];
+  const ghiMJ = daily.shortwave_radiation_sum || [];
+  const sunshineSec = daily.sunshine_duration || [];
+  const uvMax = daily.uv_index_max || [];
+  const tMax = daily.temperature_2m_max || [];
+  const tMin = daily.temperature_2m_min || [];
+
+  if (!time.length) throw new Error('No daily.time array in response');
+
+  const labels = time.map(labelFor);
+  const ghiKWh = ghiMJ.map(v => +(v / 3.6).toFixed(2));
+  const sunshineHrs = sunshineSec.map(v => +(v / 3600).toFixed(2));
+
+  // Today summary
+  const today = document.getElementById('todaySummary');
+  today.classList.remove('hidden');
+  today.innerHTML =
+    `<strong>Today (${labels[0]}):</strong> ` +
+    `GHI ${ghiMJ[0].toFixed(2)} MJ/m² (${ghiKWh[0].toFixed(2)} kWh/m²) · ` +
+    `Sunshine ${sunshineHrs[0].toFixed(2)} h · ` +
+    `UV max ${uvMax[0].toFixed(2)} · ` +
+    `Temp ${tMin[0].toFixed(1)}–${tMax[0].toFixed(1)} °C`;
+
+  // Footer metadata
+  document.getElementById('fetchedAt').textContent = fmtDublinStamp();
+  const tz = json.timezone || 'Europe/Dublin';
+  const tzAbbr = json.timezone_abbreviation || '';
+  const offset = (json.utc_offset_seconds != null) ? json.utc_offset_seconds : '—';
+  const elev = (json.elevation != null) ? `${json.elevation} m` : '—';
+  const gridLat = (json.latitude != null) ? json.latitude : '—';
+  const gridLon = (json.longitude != null) ? json.longitude : '—';
+  document.getElementById('metaLine').innerHTML =
+    `<strong>Timezone:</strong> ${tz}${tzAbbr ? ` (${tzAbbr})` : ''}, UTC offset ${offset} s · ` +
+    `<strong>Elevation:</strong> ${elev} · ` +
+    `<strong>Grid:</strong> ${gridLat}°N, ${gridLon}°E`;
+
+  document.getElementById('content').classList.remove('hidden');
+
+  // Destroy prior charts so refresh works cleanly
+  Object.values(charts).forEach(c => c && c.destroy());
+
+  charts.ghi = new Chart(document.getElementById('ghiChart'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        label: 'GHI (MJ/m²)',
+        data: ghiMJ,
+        backgroundColor: 'rgba(255, 159, 64, 0.75)',
+        borderColor: 'rgba(255, 140, 0, 1)',
+        borderWidth: 1,
+        yAxisID: 'y'
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        tooltip: {
+          callbacks: {
+            title: (items) => time[items[0].dataIndex],
+            afterLabel: (item) => `≈ ${ghiKWh[item.dataIndex]} kWh/m²`
+          }
+        },
+        legend: { position: 'bottom' }
+      },
+      scales: {
+        y: { title: { display: true, text: 'GHI (MJ/m²)' }, beginAtZero: true },
+        y1: {
+          position: 'right',
+          title: { display: true, text: 'GHI (kWh/m²)' },
+          beginAtZero: true,
+          grid: { drawOnChartArea: false },
+          ticks: { callback: v => (v / 3.6).toFixed(1) },
+          max: Math.max(...ghiMJ) * 1.1
+        }
+      }
+    }
+  });
+
+  charts.sunUv = new Chart(document.getElementById('sunUvChart'), {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: 'Sunshine (hours)',
+          data: sunshineHrs,
+          borderColor: 'rgba(255, 205, 86, 1)',
+          backgroundColor: 'rgba(255, 205, 86, 0.25)',
+          fill: true, tension: 0.3, yAxisID: 'y'
+        },
+        {
+          label: 'UV Index Max',
+          data: uvMax,
+          borderColor: 'rgba(153, 102, 255, 1)',
+          backgroundColor: 'rgba(153, 102, 255, 0.2)',
+          fill: false, tension: 0.3, yAxisID: 'y1'
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        tooltip: { callbacks: { title: (items) => time[items[0].dataIndex] } },
+        legend: { position: 'bottom' }
+      },
+      scales: {
+        y: { title: { display: true, text: 'Sunshine (hours)' }, beginAtZero: true, max: 16 },
+        y1: {
+          position: 'right',
+          title: { display: true, text: 'UV Index Max' },
+          beginAtZero: true,
+          grid: { drawOnChartArea: false },
+          max: 11
+        }
+      }
+    }
+  });
+
+  charts.temp = new Chart(document.getElementById('tempChart'), {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: 'Temp max (°C)',
+          data: tMax,
+          borderColor: 'rgba(255, 99, 132, 1)',
+          backgroundColor: 'rgba(255, 99, 132, 0.15)',
+          fill: '+1', tension: 0.3
+        },
+        {
+          label: 'Temp min (°C)',
+          data: tMin,
+          borderColor: 'rgba(54, 162, 235, 1)',
+          backgroundColor: 'rgba(54, 162, 235, 0.15)',
+          fill: false, tension: 0.3
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        tooltip: { callbacks: { title: (items) => time[items[0].dataIndex] } },
+        legend: { position: 'bottom' }
+      },
+      scales: { y: { title: { display: true, text: 'Temperature (°C)' } } }
+    }
+  });
+
+  const tbody = document.querySelector('#dataTable tbody');
+  tbody.innerHTML = '';
+  for (let i = 0; i < time.length; i++) {
+    const tr = document.createElement('tr');
+    tr.innerHTML =
+      `<td title="${time[i]}">${labels[i]}</td>` +
+      `<td>${(ghiMJ[i] ?? 0).toFixed(2)}</td>` +
+      `<td>${ghiKWh[i].toFixed(2)}</td>` +
+      `<td>${sunshineHrs[i].toFixed(2)}</td>` +
+      `<td>${(uvMax[i] ?? 0).toFixed(2)}</td>` +
+      `<td>${(tMax[i] ?? 0).toFixed(1)}</td>` +
+      `<td>${(tMin[i] ?? 0).toFixed(1)}</td>`;
+    tbody.appendChild(tr);
+  }
+}
+
+document.getElementById('refreshBtn').addEventListener('click', fetchForecast);
+fetchForecast();
+</script>
+
+</body>
+</html>
