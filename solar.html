@@ -32,8 +32,10 @@
   td:first-child, th:first-child { text-align: left; }
   footer { margin-top: 3em; padding-top: 1em; border-top: 1px solid #ddd; font-size: 0.85em; color: #555; }
   footer a { color: #0366d6; word-break: break-all; }
-  .today { background: #e7f3ff; padding: 0.8em 1em; border-radius: 4px; margin: 1em 0; }
-  .today strong { color: #0366d6; }
+  .kpis { display: flex; flex-wrap: wrap; gap: 16px; margin: 1em 0; }
+  .kpi { flex: 1 1 180px; padding: 12px 16px; border-radius: 8px; background: rgba(127,127,127,0.08); border: 1px solid rgba(127,127,127,0.2); }
+  .kpi .label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: #777; }
+  .kpi .value { font-size: 1.4rem; font-weight: 600; margin-top: 2px; }
   .error-box { background: #ffe9ec; border: 1px solid #f5a8b3; padding: 1em 1.2em; border-radius: 4px; margin: 1em 0; color: #86181d; }
   .error-box pre { white-space: pre-wrap; word-break: break-word; margin: 0.6em 0 0; font-size: 0.85em; }
   .hidden { display: none; }
@@ -48,7 +50,7 @@
   <button id="refreshBtn" disabled>Refresh</button>
 </div>
 
-<div class="today hidden" id="todaySummary"></div>
+<div class="kpis hidden" id="kpis"></div>
 
 <div class="error-box hidden" id="errorBox"></div>
 
@@ -89,6 +91,7 @@
   <p id="metaLine"><strong>Timezone:</strong> — · <strong>Elevation:</strong> — · <strong>Grid:</strong> —</p>
   <p>Open-Meteo combines multiple national weather models (ECMWF, DWD ICON, NCEP GFS, UK Met Office, and others) into a best-match 16-day forecast blend.</p>
   <p>Weather data by <a href="https://open-meteo.com">Open-Meteo.com</a> (CC-BY 4.0).</p>
+  <p>Source: <a href="https://github.com/mrduguo/mrduguo.github.io">github.com/mrduguo/mrduguo.github.io</a></p>
 </footer>
 
 <script>
@@ -186,15 +189,22 @@ function render(json) {
   const ghiKWh = ghiMJ.map(v => +(v / 3.6).toFixed(2));
   const sunshineHrs = sunshineSec.map(v => +(v / 3600).toFixed(2));
 
-  // Today summary
-  const today = document.getElementById('todaySummary');
-  today.classList.remove('hidden');
-  today.innerHTML =
-    `<strong>Today (${labels[0]}):</strong> ` +
-    `GHI ${ghiMJ[0].toFixed(2)} MJ/m² (${ghiKWh[0].toFixed(2)} kWh/m²) · ` +
-    `Sunshine ${sunshineHrs[0].toFixed(2)} h · ` +
-    `UV max ${uvMax[0].toFixed(2)} · ` +
-    `Temp ${tMin[0].toFixed(1)}–${tMax[0].toFixed(1)} °C`;
+  // Today KPIs
+  const kpiRoot = document.getElementById('kpis');
+  kpiRoot.classList.remove('hidden');
+  const kpiData = [
+    { label: 'Today GHI / m²', value: `${ghiMJ[0].toFixed(2)} MJ (${ghiKWh[0].toFixed(2)} kWh)` },
+    { label: 'Today Sunshine', value: `${sunshineHrs[0].toFixed(2)} h` },
+    { label: 'Today UV max', value: uvMax[0].toFixed(2) },
+    { label: 'Today Temp', value: `${tMax[0].toFixed(1)}° / ${tMin[0].toFixed(1)}° C` },
+  ];
+  kpiRoot.innerHTML = '';
+  kpiData.forEach(k => {
+    const d = document.createElement('div');
+    d.className = 'kpi';
+    d.innerHTML = `<div class="label">${k.label}</div><div class="value">${k.value}</div>`;
+    kpiRoot.appendChild(d);
+  });
 
   // Footer metadata
   document.getElementById('fetchedAt').textContent = fmtDublinStamp();
