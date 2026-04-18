@@ -231,7 +231,6 @@
         <tr>
           <th>Date</th>
           <th>GHI (MJ/m²)</th>
-          <th>GHI (kWh/m²)</th>
           <th>Sunshine (h)</th>
           <th>UV max</th>
           <th>Temp max (°C)</th>
@@ -283,6 +282,32 @@
     };
 
     let charts = { ghi: null, hourlyGhi: null, sunUv: null, temp: null };
+
+    const verticalBarLabel = {
+      id: 'verticalBarLabel',
+      afterDatasetsDraw(chart) {
+        const { ctx } = chart;
+        chart.data.datasets.forEach((ds, di) => {
+          const meta = chart.getDatasetMeta(di);
+          if (meta.type !== 'bar') return;
+          meta.data.forEach((bar, i) => {
+            const v = ds.data[i];
+            if (v == null) return;
+            const text = (+v).toFixed(1);
+            if (text === '0.0' || text === '-0.0') return;
+            ctx.save();
+            ctx.translate(bar.x, bar.y - 4);
+            ctx.rotate(-Math.PI / 2);
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'middle';
+            ctx.fillStyle = '#333';
+            ctx.font = '10px -apple-system, "Segoe UI", sans-serif';
+            ctx.fillText(text, 0, 0);
+            ctx.restore();
+          });
+        });
+      }
+    };
 
     function setStatus(kind, text) {
       const el = document.getElementById('status');
@@ -348,17 +373,26 @@
       if (!time.length) throw new Error('No daily.time array in response');
 
       const labels = time.map(labelFor);
-      const ghiKWh = ghiMJ.map(v => +(v / 3.6).toFixed(2));
       const sunshineHrs = sunshineSec.map(v => +(v / 3600).toFixed(2));
 
       // Today KPIs
       const kpiRoot = document.getElementById('kpis');
       kpiRoot.classList.remove('hidden');
+      const fmt1 = v => {
+        if (v == null) return '';
+        const s = (+v).toFixed(1);
+        return (s === '0.0' || s === '-0.0') ? '' : s;
+      };
+      const todayGhi = fmt1(ghiMJ[0]);
+      const todaySun = fmt1(sunshineHrs[0]);
+      const todayUv = fmt1(uvMax[0]);
+      const todayMax = fmt1(tMax[0]);
+      const todayMin = fmt1(tMin[0]);
       const kpiData = [
-        { label: 'Today GHI / m²', value: `${ghiMJ[0].toFixed(2)} MJ (${ghiKWh[0].toFixed(2)} kWh)` },
-        { label: 'Today Sunshine', value: `${sunshineHrs[0].toFixed(2)} h` },
-        { label: 'Today UV max', value: uvMax[0].toFixed(2) },
-        { label: 'Today Temp', value: `${tMax[0].toFixed(1)}° / ${tMin[0].toFixed(1)}° C` },
+        { label: 'Today GHI / m²', value: todayGhi ? `${todayGhi} MJ` : '' },
+        { label: 'Today Sunshine', value: todaySun ? `${todaySun} h` : '' },
+        { label: 'Today UV max', value: todayUv },
+        { label: 'Today Temp', value: (todayMax || todayMin) ? `${todayMax || '—'}° / ${todayMin || '—'}° C` : '' },
       ];
       kpiRoot.innerHTML = '';
       kpiData.forEach(k => {
@@ -402,27 +436,20 @@
         options: {
           responsive: true,
           maintainAspectRatio: false,
+          layout: { padding: { top: 34 } },
           plugins: {
             tooltip: {
               callbacks: {
-                title: (items) => time[items[0].dataIndex],
-                afterLabel: (item) => `≈ ${ghiKWh[item.dataIndex]} kWh/m²`
+                title: (items) => time[items[0].dataIndex]
               }
             },
             legend: { position: 'bottom' }
           },
           scales: {
-            y: { title: { display: true, text: 'GHI (MJ/m²)' }, min: Math.min(...ghiMJ), max: Math.max(...ghiMJ) },
-            y1: {
-              position: 'right',
-              title: { display: true, text: 'GHI (kWh/m²)' },
-              min: Math.min(...ghiMJ),
-              grid: { drawOnChartArea: false },
-              ticks: { callback: v => (v / 3.6).toFixed(1) },
-              max: Math.max(...ghiMJ)
-            }
+            y: { title: { display: true, text: 'GHI (MJ/m²)' }, min: Math.min(...ghiMJ), max: Math.max(...ghiMJ) }
           }
-        }
+        },
+        plugins: [verticalBarLabel]
       });
 
       const hourly = json.hourly || {};
@@ -464,24 +491,25 @@
         options: {
           responsive: true,
           maintainAspectRatio: false,
+          layout: { padding: { top: 30 } },
           plugins: {
             tooltip: {
               callbacks: {
-                title: (items) => hTooltipIso[items[0].dataIndex],
-                afterLabel: (item) => `≈ ${(hGhiMJ[item.dataIndex] / 3.6 * 1000).toFixed(0)} Wh/m²`
+                title: (items) => hTooltipIso[items[0].dataIndex]
               }
             },
             legend: { position: 'bottom' },
             title: {
               display: true,
-              text: `48-hour total: ${hTotalMJ.toFixed(2)} MJ/m² (${(hTotalMJ / 3.6).toFixed(2)} kWh/m²)`
+              text: `48-hour total: ${hTotalMJ.toFixed(2)} MJ/m²`
             }
           },
           scales: {
             x: { ticks: { autoSkip: true, maxRotation: 0 } },
             y: { title: { display: true, text: 'GHI (MJ/m²)' }, min: Math.min(...hGhiMJ), max: Math.max(...hGhiMJ) }
           }
-        }
+        },
+        plugins: [verticalBarLabel]
       });
 
       charts.sunUv = new Chart(document.getElementById('sunUvChart'), {
@@ -564,7 +592,6 @@
         tr.innerHTML =
           `<td title="${time[i]}">${labels[i]}</td>` +
           `<td>${(ghiMJ[i] ?? 0).toFixed(2)}</td>` +
-          `<td>${ghiKWh[i].toFixed(2)}</td>` +
           `<td>${sunshineHrs[i].toFixed(2)}</td>` +
           `<td>${(uvMax[i] ?? 0).toFixed(2)}</td>` +
           `<td>${(tMax[i] ?? 0).toFixed(1)}</td>` +
