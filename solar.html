@@ -17,17 +17,19 @@
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       max-width: 1100px;
-      margin: 2em auto;
+      margin: 0.6em auto;
       padding: 0 1em;
       color: #222;
     }
 
     h1 {
-      margin-bottom: 0.2em;
+      margin: 0.2em 0 0.1em;
+      font-size: 1.4rem;
     }
 
     h2 {
-      margin-top: 2em;
+      margin: 0.8em 0 0.3em;
+      font-size: 1.05rem;
     }
 
     .subtitle {
@@ -41,7 +43,7 @@
       align-items: center;
       flex-wrap: wrap;
       gap: 0.6em;
-      margin: 1em 0;
+      margin: 0.4em 0;
     }
 
     .status {
@@ -102,8 +104,8 @@
 
     .chart-wrap {
       position: relative;
-      height: 360px;
-      margin: 1em 0 2em;
+      height: 260px;
+      margin: 0.3em 0 0.8em;
     }
 
     table {
@@ -131,11 +133,15 @@
     }
 
     footer {
-      margin-top: 3em;
-      padding-top: 1em;
+      margin-top: 1em;
+      padding-top: 0.5em;
       border-top: 1px solid #ddd;
-      font-size: 0.85em;
+      font-size: 0.8em;
       color: #555;
+    }
+
+    footer p {
+      margin: 0.25em 0;
     }
 
     footer a {
@@ -146,14 +152,14 @@
     .kpis {
       display: flex;
       flex-wrap: wrap;
-      gap: 16px;
-      margin: 1em 0;
+      gap: 8px;
+      margin: 0.4em 0;
     }
 
     .kpi {
       flex: 1 1 180px;
-      padding: 12px 16px;
-      border-radius: 8px;
+      padding: 6px 12px;
+      border-radius: 6px;
       background: rgba(127, 127, 127, 0.08);
       border: 1px solid rgba(127, 127, 127, 0.2);
     }
@@ -166,9 +172,9 @@
     }
 
     .kpi .value {
-      font-size: 1.4rem;
+      font-size: 1.15rem;
       font-weight: 600;
-      margin-top: 2px;
+      margin-top: 1px;
     }
 
     .error-box {
@@ -210,6 +216,9 @@
     <h2>Daily Global Horizontal Irradiation (GHI)</h2>
     <div class="chart-wrap"><canvas id="ghiChart"></canvas></div>
 
+    <h2>Hourly GHI — Next 48 Hours (Today &amp; Tomorrow)</h2>
+    <div class="chart-wrap"><canvas id="hourlyGhiChart"></canvas></div>
+
     <h2>Sunshine Duration &amp; UV Index Max</h2>
     <div class="chart-wrap"><canvas id="sunUvChart"></canvas></div>
 
@@ -248,7 +257,7 @@
   </footer>
 
   <script>
-    const API_URL = 'https://api.open-meteo.com/v1/forecast?latitude=53.300573&longitude=-6.319429&daily=shortwave_radiation_sum,sunshine_duration,uv_index_max,temperature_2m_max,temperature_2m_min&timezone=Europe%2FDublin&forecast_days=16';
+    const API_URL = 'https://api.open-meteo.com/v1/forecast?latitude=53.300573&longitude=-6.319429&daily=shortwave_radiation_sum,sunshine_duration,uv_index_max,temperature_2m_max,temperature_2m_min&hourly=shortwave_radiation&timezone=Europe%2FDublin&forecast_days=16';
 
     document.getElementById('sourceLink').href = API_URL;
 
@@ -273,7 +282,7 @@
       }
     };
 
-    let charts = { ghi: null, sunUv: null, temp: null };
+    let charts = { ghi: null, hourlyGhi: null, sunUv: null, temp: null };
 
     function setStatus(kind, text) {
       const el = document.getElementById('status');
@@ -403,15 +412,74 @@
             legend: { position: 'bottom' }
           },
           scales: {
-            y: { title: { display: true, text: 'GHI (MJ/m²)' }, beginAtZero: true },
+            y: { title: { display: true, text: 'GHI (MJ/m²)' }, min: Math.min(...ghiMJ), max: Math.max(...ghiMJ) },
             y1: {
               position: 'right',
               title: { display: true, text: 'GHI (kWh/m²)' },
-              beginAtZero: true,
+              min: Math.min(...ghiMJ),
               grid: { drawOnChartArea: false },
               ticks: { callback: v => (v / 3.6).toFixed(1) },
-              max: Math.max(...ghiMJ) * 1.1
+              max: Math.max(...ghiMJ)
             }
+          }
+        }
+      });
+
+      const hourly = json.hourly || {};
+      const hourlyTime = hourly.time || [];
+      const hourlySW = hourly.shortwave_radiation || [];
+      const hoursToShow = 48;
+      const hLabels = [];
+      const hGhiMJ = [];
+      const hTooltipIso = [];
+      const fmtHour = new Intl.DateTimeFormat('en-GB', {
+        hour: '2-digit', minute: '2-digit', hour12: false
+      });
+      const fmtHourDay = new Intl.DateTimeFormat('en-GB', {
+        weekday: 'short', hour: '2-digit', minute: '2-digit', hour12: false
+      });
+      for (let i = 0; i < hourlyTime.length && hGhiMJ.length < hoursToShow; i++) {
+        const iso = hourlyTime[i];
+        // API returns local-time ISO strings (no TZ suffix) because timezone=Europe/Dublin
+        const d = new Date(iso);
+        const isHourStart = hLabels.length === 0 || iso.endsWith('T00:00');
+        hLabels.push(isHourStart ? fmtHourDay.format(d) : fmtHour.format(d));
+        hGhiMJ.push(+((hourlySW[i] || 0) * 0.0036).toFixed(3));
+        hTooltipIso.push(iso);
+      }
+      const hTotalMJ = hGhiMJ.reduce((a, b) => a + b, 0);
+
+      charts.hourlyGhi = new Chart(document.getElementById('hourlyGhiChart'), {
+        type: 'bar',
+        data: {
+          labels: hLabels,
+          datasets: [{
+            label: 'Hourly GHI (MJ/m²)',
+            data: hGhiMJ,
+            backgroundColor: 'rgba(245, 166, 35, 0.75)',
+            borderColor: 'rgba(230, 140, 0, 1)',
+            borderWidth: 1
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            tooltip: {
+              callbacks: {
+                title: (items) => hTooltipIso[items[0].dataIndex],
+                afterLabel: (item) => `≈ ${(hGhiMJ[item.dataIndex] / 3.6 * 1000).toFixed(0)} Wh/m²`
+              }
+            },
+            legend: { position: 'bottom' },
+            title: {
+              display: true,
+              text: `48-hour total: ${hTotalMJ.toFixed(2)} MJ/m² (${(hTotalMJ / 3.6).toFixed(2)} kWh/m²)`
+            }
+          },
+          scales: {
+            x: { ticks: { autoSkip: true, maxRotation: 0 } },
+            y: { title: { display: true, text: 'GHI (MJ/m²)' }, min: Math.min(...hGhiMJ), max: Math.max(...hGhiMJ) }
           }
         }
       });
@@ -445,13 +513,13 @@
             legend: { position: 'bottom' }
           },
           scales: {
-            y: { title: { display: true, text: 'Sunshine (hours)' }, beginAtZero: true, max: 16 },
+            y: { title: { display: true, text: 'Sunshine (hours)' }, min: Math.min(...sunshineHrs), max: Math.max(...sunshineHrs) },
             y1: {
               position: 'right',
               title: { display: true, text: 'UV Index Max' },
-              beginAtZero: true,
+              min: Math.min(...uvMax),
               grid: { drawOnChartArea: false },
-              max: 11
+              max: Math.max(...uvMax)
             }
           }
         }
@@ -485,7 +553,7 @@
             tooltip: { callbacks: { title: (items) => time[items[0].dataIndex] } },
             legend: { position: 'bottom' }
           },
-          scales: { y: { title: { display: true, text: 'Temperature (°C)' } } }
+          scales: { y: { title: { display: true, text: 'Temperature (°C)' }, min: Math.min(...tMin), max: Math.max(...tMax) } }
         }
       });
 
