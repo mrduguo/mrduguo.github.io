@@ -153,6 +153,12 @@
       font-size: 0.85em;
       font-weight: 500;
       border-right: 1px solid #d0d7de;
+      text-decoration: none;
+    }
+
+    a.coord-label:hover {
+      color: #0366d6;
+      background: #eef3f9;
     }
 
     .coord-input {
@@ -354,7 +360,7 @@
     <div class="status loading" id="status"><span class="dot"></span><span id="statusText">Loading…</span></div>
     <div class="controls">
       <div class="coord-group">
-        <span class="coord-label">Lat,Lon</span>
+        <a id="coordMapLink" class="coord-label" href="#" target="_blank" rel="noopener">Lat,Lon</a>
         <input type="text" id="coordInput" size="16" inputmode="decimal" class="coord-input" placeholder="lat,lon">
         <button id="refreshBtn" disabled>Refresh</button>
       </div>
@@ -422,16 +428,35 @@
     const qs = new URLSearchParams(location.search);
     const latitude = qs.get('latitude') || DEFAULT_LAT;
     const longitude = qs.get('longitude') || DEFAULT_LON;
-    const unit = (qs.get('unit') === 'kwh') ? 'kwh' : 'mj';
-    const unitFactor = unit === 'kwh' ? (1 / 3.6) : 1;
-    const unitLabel = unit === 'kwh' ? 'kWh/m²' : 'MJ/m²';
+    const unitParam = qs.get('unit') || 'MJ/m²';
+    const unitNumber = /^-?\d+(?:\.\d+)?$/.test(unitParam) ? parseFloat(unitParam) : null;
+    let unitLabel, unitFactor;
+    if (unitNumber !== null) {
+      unitLabel = 'kWh';
+      unitFactor = (1 / 3.6) * unitNumber;
+    } else {
+      unitLabel = unitParam;
+      unitFactor = /kwh/i.test(unitParam) ? (1 / 3.6) : 1;
+    }
     const forecastDays = qs.get('forecast_days') || '14';
     const forecastHours = qs.get('forecast_hours') || '72';
     const currentTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
     const API_URL = `https://api.open-meteo.com/v1/forecast?latitude=${encodeURIComponent(latitude)}&longitude=${encodeURIComponent(longitude)}&daily=shortwave_radiation_sum,sunshine_duration,uv_index_max,temperature_2m_max,temperature_2m_min&hourly=shortwave_radiation&timezone=${encodeURIComponent(currentTz)}&forecast_days=${forecastDays}&past_days=1`;
 
     document.getElementById('sourceLink').href = API_URL;
-    document.getElementById('coordInput').value = `${latitude},${longitude}`;
+    const coordInputEl = document.getElementById('coordInput');
+    const coordMapLinkEl = document.getElementById('coordMapLink');
+    coordInputEl.value = `${latitude},${longitude}`;
+    const updateCoordMapLink = () => {
+      const parts = coordInputEl.value.split(',');
+      const lat = (parts[0] || '').trim();
+      const lon = (parts[1] || '').trim();
+      coordMapLinkEl.href = (lat && lon)
+        ? `https://www.google.com/maps?q=${encodeURIComponent(lat)},${encodeURIComponent(lon)}`
+        : '#';
+    };
+    updateCoordMapLink();
+    coordInputEl.addEventListener('input', updateCoordMapLink);
 
     const fmtDay = new Intl.DateTimeFormat('en-GB', { day: 'numeric', weekday: 'short' });
     const labelFor = iso => {
@@ -571,7 +596,7 @@
       const todayMax = fmt1(tMax[todayIdx]);
       const todayMin = fmt1(tMin[todayIdx]);
       const kpiData = [
-        { label: 'Today GHI / m²', value: todayGhi ? `${todayGhi} ${unit === 'kwh' ? 'kWh' : 'MJ'}` : '' },
+        { label: 'Today GHI', value: todayGhi ? `${todayGhi} ${unitLabel}` : '' },
         { label: 'Today Sunshine', value: todaySun ? `${todaySun} h` : '' },
         { label: 'Today UV max', value: todayUv },
         { label: 'Today Temp', value: (todayMax || todayMin) ? `${todayMax || '—'}° / ${todayMin || '—'}° C` : '' },
@@ -595,10 +620,10 @@
       const gridValue = (json.latitude != null && json.longitude != null)
         ? `<a href="https://www.google.com/maps?q=${encodeURIComponent(gridLat)},${encodeURIComponent(gridLon)}" target="_blank" rel="noopener">${gridLat}°N, ${gridLon}°E</a>`
         : `${gridLat}°N, ${gridLon}°E`;
-      const otherUnit = unit === 'kwh' ? 'mj' : 'kwh';
-      const otherUnitLabel = unit === 'kwh' ? 'MJ/m²' : 'kWh/m²';
+      const isKwhLike = unitNumber !== null || /kwh/i.test(unitParam);
+      const otherUnitLabel = isKwhLike ? 'MJ/m²' : 'kWh/m²';
       const unitSwitchQs = new URLSearchParams(location.search);
-      unitSwitchQs.set('unit', otherUnit);
+      unitSwitchQs.set('unit', otherUnitLabel);
       const unitSwitchHref = `${location.pathname}?${unitSwitchQs.toString()}`;
 
       const otherDays = forecastDays === '14' ? '7' : '14';
@@ -734,11 +759,7 @@
                 title: (items) => hTooltipIso[items[0].dataIndex]
               }
             },
-            legend: { display: false },
-            title: {
-              display: true,
-              text: `${hoursToShow}-hour total: ${hTotalMJ.toFixed(2)} ${unitLabel}`
-            }
+            legend: { display: false }
           },
           scales: {
             x: { ticks: { autoSkip: true, maxRotation: 0 } },
