@@ -254,16 +254,16 @@
 
   <footer>
     <p><strong>Sources:</strong>
-      <a id="sourceLink" href="#">Open-Meteo forecast request</a>
+      <a id="sourceLink" href="#" target="_blank" rel="noopener">Open-Meteo forecast request</a>
       ·
-      <a href="https://en.tutiempo.net/solar-radiation/dublin.html">Tu Tiempo — Dublin solar radiation reference</a>
+      <a href="https://en.tutiempo.net/solar-radiation/dublin.html" target="_blank" rel="noopener">Tu Tiempo — Dublin solar radiation reference</a>
     </p>
     <p><strong>Fetched:</strong> <span id="fetchedAt">—</span></p>
     <p id="metaLine"><strong>Timezone:</strong> — · <strong>Elevation:</strong> — · <strong>Grid:</strong> —</p>
     <p>Open-Meteo combines multiple national weather models (ECMWF, DWD ICON, NCEP GFS, UK Met Office, and others) into
-      a best-match 16-day forecast blend.</p>
-    <p>Weather data by <a href="https://open-meteo.com">Open-Meteo.com</a> (CC-BY 4.0).</p>
-    <p>Source: <a href="https://github.com/mrduguo/mrduguo.github.io">github.com/mrduguo/mrduguo.github.io</a></p>
+      a best-match 14-day forecast blend.</p>
+    <p>Weather data by <a href="https://open-meteo.com" target="_blank" rel="noopener">Open-Meteo.com</a> (CC-BY 4.0).</p>
+    <p>Source: <a href="https://github.com/mrduguo/mrduguo.github.io" target="_blank" rel="noopener">github.com/mrduguo/mrduguo.github.io</a></p>
   </footer>
 
   <script>
@@ -273,7 +273,7 @@
     const latitude = qs.get('latitude') || DEFAULT_LAT;
     const longitude = qs.get('longitude') || DEFAULT_LON;
     const currentTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-    const API_URL = `https://api.open-meteo.com/v1/forecast?latitude=${encodeURIComponent(latitude)}&longitude=${encodeURIComponent(longitude)}&daily=shortwave_radiation_sum,sunshine_duration,uv_index_max,temperature_2m_max,temperature_2m_min&hourly=shortwave_radiation&timezone=${encodeURIComponent(currentTz)}&forecast_days=16&past_days=1`;
+    const API_URL = `https://api.open-meteo.com/v1/forecast?latitude=${encodeURIComponent(latitude)}&longitude=${encodeURIComponent(longitude)}&daily=shortwave_radiation_sum,sunshine_duration,uv_index_max,temperature_2m_max,temperature_2m_min&hourly=shortwave_radiation&timezone=${encodeURIComponent(currentTz)}&forecast_days=14&past_days=1`;
 
     document.getElementById('sourceLink').href = API_URL;
     document.getElementById('locationLink').href = `https://www.google.com/maps?q=${encodeURIComponent(latitude)},${encodeURIComponent(longitude)}`;
