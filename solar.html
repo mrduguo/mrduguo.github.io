@@ -97,14 +97,123 @@
       background: #024ea4;
     }
 
-    #locationLink {
-      color: #0366d6;
-      text-decoration: none;
-      font-size: 0.95em;
+    .coord-group {
+      display: inline-flex;
+      align-items: stretch;
+      border: 1px solid #d0d7de;
+      border-radius: 6px;
+      overflow: hidden;
+      background: #fff;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
     }
 
-    #locationLink:hover {
-      text-decoration: underline;
+    @media (max-width: 640px) {
+      .header-bar {
+        gap: 0.4em;
+      }
+
+      .status {
+        flex: 1 1 100%;
+      }
+
+      .controls {
+        display: flex;
+        width: 100%;
+        flex: 1 1 100%;
+        min-width: 0;
+      }
+
+      .unit-toggle {
+        flex: 0 0 auto;
+      }
+
+      .coord-group {
+        flex: 1 1 auto;
+        min-width: 0;
+      }
+
+      .coord-input {
+        flex: 1 1 auto;
+        width: auto;
+        min-width: 0;
+      }
+    }
+
+    .coord-group:focus-within {
+      border-color: #0366d6;
+      box-shadow: 0 0 0 3px rgba(3, 102, 214, 0.15);
+    }
+
+    .coord-label {
+      display: inline-flex;
+      align-items: center;
+      padding: 0 0.7em;
+      color: #57606a;
+      background: #f6f8fa;
+      font-size: 0.85em;
+      font-weight: 500;
+      border-right: 1px solid #d0d7de;
+    }
+
+    .coord-input {
+      font: inherit;
+      padding: 0.4em 0.5em;
+      border: none;
+      outline: none;
+      background: transparent;
+      min-width: 0;
+      width: 16ch;
+      font-size: 0.9em;
+    }
+
+    .coord-group button {
+      border: none;
+      border-left: 1px solid #d0d7de;
+      border-radius: 0;
+      padding: 0.4em 1em;
+    }
+
+    .controls {
+      display: inline-flex;
+      align-items: stretch;
+      gap: 10px;
+    }
+
+    .unit-toggle {
+      display: inline-flex;
+      align-items: stretch;
+      border: 1px solid #d0d7de;
+      border-radius: 6px;
+      overflow: hidden;
+      background: #fff;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+    }
+
+    .unit-toggle button {
+      border: none;
+      border-radius: 0;
+      padding: 0.4em 0.9em;
+      background: #fff;
+      color: #57606a;
+      font-size: 0.9em;
+      cursor: pointer;
+    }
+
+    .unit-toggle button + button {
+      border-left: 1px solid #d0d7de;
+    }
+
+    .unit-toggle button:hover {
+      background: #f6f8fa;
+    }
+
+    .unit-toggle button.active {
+      background: #0366d6;
+      color: #fff;
+    }
+
+    .unit-toggle button.active:hover {
+      background: #024ea4;
     }
 
     button:disabled {
@@ -206,6 +315,34 @@
     .hidden {
       display: none;
     }
+
+    details.collapsible > summary {
+      cursor: pointer;
+      list-style: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4em;
+    }
+
+    details.collapsible > summary::-webkit-details-marker {
+      display: none;
+    }
+
+    details.collapsible > summary::before {
+      content: '▸';
+      font-size: 2.4em;
+      line-height: 1;
+      color: #444;
+      transition: transform 0.15s;
+    }
+
+    details.collapsible[open] > summary::before {
+      content: '▾';
+    }
+
+    details.collapsible > summary h2 {
+      display: inline;
+    }
   </style>
 </head>
 
@@ -215,8 +352,13 @@
 
   <div class="header-bar">
     <div class="status loading" id="status"><span class="dot"></span><span id="statusText">Loading…</span></div>
-    <a id="locationLink" href="#" target="_blank" rel="noopener">Location</a>
-    <button id="refreshBtn" disabled>Refresh</button>
+    <div class="controls">
+      <div class="coord-group">
+        <span class="coord-label">Lat,Lon</span>
+        <input type="text" id="coordInput" size="16" inputmode="decimal" class="coord-input" placeholder="lat,lon">
+        <button id="refreshBtn" disabled>Refresh</button>
+      </div>
+    </div>
   </div>
 
   <div class="kpis hidden" id="kpis"></div>
@@ -224,39 +366,47 @@
   <div class="error-box hidden" id="errorBox"></div>
 
   <div id="content" class="hidden">
-    <h2>Daily Global Horizontal Irradiation (GHI)</h2>
-    <div class="chart-wrap"><canvas id="ghiChart"></canvas></div>
+    <details class="collapsible" open>
+      <summary><h2>Daily Global Horizontal Irradiation (GHI)</h2></summary>
+      <div class="chart-wrap"><canvas id="ghiChart"></canvas></div>
+    </details>
 
-    <h2>Hourly GHI — Yesterday through Day-After-Tomorrow (96 h)</h2>
-    <div class="chart-wrap"><canvas id="hourlyGhiChart"></canvas></div>
+    <details class="collapsible" open>
+      <summary><h2>Hourly GHI — Yesterday through Day-After-Tomorrow (96 h)</h2></summary>
+      <div class="chart-wrap"><canvas id="hourlyGhiChart"></canvas></div>
+    </details>
 
-    <h2>Sunshine Duration &amp; UV Index Max</h2>
-    <div class="chart-wrap"><canvas id="sunUvChart"></canvas></div>
+    <details class="collapsible" open>
+      <summary><h2>Sunshine Duration &amp; UV Index Max</h2></summary>
+      <div class="chart-wrap"><canvas id="sunUvChart"></canvas></div>
+    </details>
 
-    <h2>Daily Temperature Range</h2>
-    <div class="chart-wrap"><canvas id="tempChart"></canvas></div>
+    <details class="collapsible" open>
+      <summary><h2>Daily Temperature Range</h2></summary>
+      <div class="chart-wrap"><canvas id="tempChart"></canvas></div>
+    </details>
 
-    <h2>Raw Forecast Data</h2>
-    <table id="dataTable">
-      <thead>
-        <tr>
-          <th>Date</th>
-          <th>GHI (MJ/m²)</th>
-          <th>Sunshine (h)</th>
-          <th>UV max</th>
-          <th>Temp max (°C)</th>
-          <th>Temp min (°C)</th>
-        </tr>
-      </thead>
-      <tbody></tbody>
-    </table>
+    <details class="collapsible">
+      <summary><h2>Raw Forecast Data</h2></summary>
+      <table id="dataTable">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th id="ghiUnitHeader">GHI (MJ/m²)</th>
+            <th>Sunshine (h)</th>
+            <th>UV max</th>
+            <th>Temp max (°C)</th>
+            <th>Temp min (°C)</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </details>
   </div>
 
   <footer>
     <p><strong>Sources:</strong>
       <a id="sourceLink" href="#" target="_blank" rel="noopener">Open-Meteo forecast request</a>
-      ·
-      <a href="https://en.tutiempo.net/solar-radiation/dublin.html" target="_blank" rel="noopener">Tu Tiempo — Dublin solar radiation reference</a>
     </p>
     <p><strong>Fetched:</strong> <span id="fetchedAt">—</span></p>
     <p id="metaLine"><strong>Timezone:</strong> — · <strong>Elevation:</strong> — · <strong>Grid:</strong> —</p>
@@ -267,16 +417,20 @@
   </footer>
 
   <script>
-    const DEFAULT_LAT = '53.300573';
-    const DEFAULT_LON = '-6.319429';
+    const DEFAULT_LAT = '53.3498';
+    const DEFAULT_LON = '-6.2603';
     const qs = new URLSearchParams(location.search);
     const latitude = qs.get('latitude') || DEFAULT_LAT;
     const longitude = qs.get('longitude') || DEFAULT_LON;
+    const unit = (qs.get('unit') === 'kwh') ? 'kwh' : 'mj';
+    const unitFactor = unit === 'kwh' ? (1 / 3.6) : 1;
+    const unitLabel = unit === 'kwh' ? 'kWh/m²' : 'MJ/m²';
+    const forecastDays = qs.get('forecast_days') || '14';
     const currentTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-    const API_URL = `https://api.open-meteo.com/v1/forecast?latitude=${encodeURIComponent(latitude)}&longitude=${encodeURIComponent(longitude)}&daily=shortwave_radiation_sum,sunshine_duration,uv_index_max,temperature_2m_max,temperature_2m_min&hourly=shortwave_radiation&timezone=${encodeURIComponent(currentTz)}&forecast_days=14&past_days=1`;
+    const API_URL = `https://api.open-meteo.com/v1/forecast?latitude=${encodeURIComponent(latitude)}&longitude=${encodeURIComponent(longitude)}&daily=shortwave_radiation_sum,sunshine_duration,uv_index_max,temperature_2m_max,temperature_2m_min&hourly=shortwave_radiation&timezone=${encodeURIComponent(currentTz)}&forecast_days=${forecastDays}&past_days=1`;
 
     document.getElementById('sourceLink').href = API_URL;
-    document.getElementById('locationLink').href = `https://www.google.com/maps?q=${encodeURIComponent(latitude)},${encodeURIComponent(longitude)}`;
+    document.getElementById('coordInput').value = `${latitude},${longitude}`;
 
     const fmtDay = new Intl.DateTimeFormat('en-GB', { day: 'numeric', weekday: 'short' });
     const labelFor = iso => {
@@ -382,7 +536,8 @@
     function render(json) {
       const daily = json.daily || {};
       const time = daily.time || [];
-      const ghiMJ = daily.shortwave_radiation_sum || [];
+      const ghiMJ = (daily.shortwave_radiation_sum || []).map(v => +((+v || 0) * unitFactor).toFixed(3));
+      document.getElementById('ghiUnitHeader').textContent = `GHI (${unitLabel})`;
       const sunshineSec = daily.sunshine_duration || [];
       const uvMax = daily.uv_index_max || [];
       const tMax = daily.temperature_2m_max || [];
@@ -415,7 +570,7 @@
       const todayMax = fmt1(tMax[todayIdx]);
       const todayMin = fmt1(tMin[todayIdx]);
       const kpiData = [
-        { label: 'Today GHI / m²', value: todayGhi ? `${todayGhi} MJ` : '' },
+        { label: 'Today GHI / m²', value: todayGhi ? `${todayGhi} ${unit === 'kwh' ? 'kWh' : 'MJ'}` : '' },
         { label: 'Today Sunshine', value: todaySun ? `${todaySun} h` : '' },
         { label: 'Today UV max', value: todayUv },
         { label: 'Today Temp', value: (todayMax || todayMin) ? `${todayMax || '—'}° / ${todayMin || '—'}° C` : '' },
@@ -436,10 +591,26 @@
       const elev = (json.elevation != null) ? `${json.elevation} m` : '—';
       const gridLat = (json.latitude != null) ? json.latitude : '—';
       const gridLon = (json.longitude != null) ? json.longitude : '—';
+      const gridValue = (json.latitude != null && json.longitude != null)
+        ? `<a href="https://www.google.com/maps?q=${encodeURIComponent(gridLat)},${encodeURIComponent(gridLon)}" target="_blank" rel="noopener">${gridLat}°N, ${gridLon}°E</a>`
+        : `${gridLat}°N, ${gridLon}°E`;
+      const otherUnit = unit === 'kwh' ? 'mj' : 'kwh';
+      const otherUnitLabel = unit === 'kwh' ? 'MJ/m²' : 'kWh/m²';
+      const unitSwitchQs = new URLSearchParams(location.search);
+      unitSwitchQs.set('unit', otherUnit);
+      const unitSwitchHref = `${location.pathname}?${unitSwitchQs.toString()}`;
+
+      const otherDays = forecastDays === '14' ? '7' : '14';
+      const daysSwitchQs = new URLSearchParams(location.search);
+      daysSwitchQs.set('forecast_days', otherDays);
+      const daysSwitchHref = `${location.pathname}?${daysSwitchQs.toString()}`;
+
       document.getElementById('metaLine').innerHTML =
-        `<strong>Timezone:</strong> ${tz}${tzAbbr ? ` (${tzAbbr})` : ''}, UTC offset ${offset} s · ` +
-        `<strong>Elevation:</strong> ${elev} · ` +
-        `<strong>Grid:</strong> ${gridLat}°N, ${gridLon}°E`;
+        `<div><strong>Timezone:</strong> ${tz}${tzAbbr ? ` (${tzAbbr})` : ''}, UTC offset ${offset} s</div>` +
+        `<div><strong>Elevation:</strong> ${elev}</div>` +
+        `<div><strong>Grid:</strong> ${gridValue}</div>` +
+        `<div><strong>Unit:</strong> ${unitLabel} · <a href="${unitSwitchHref}">switch to ${otherUnitLabel}</a></div>` +
+        `<div><strong>Forecast Days:</strong> ${forecastDays} · <a href="${daysSwitchHref}">switch to ${otherDays}</a></div>`;
 
       document.getElementById('content').classList.remove('hidden');
 
@@ -454,7 +625,7 @@
         data: {
           labels,
           datasets: [{
-            label: 'GHI (MJ/m²)',
+            label: `GHI (${unitLabel})`,
             data: ghiMJ,
             backgroundColor: dailyBg,
             borderColor: dailyBorder,
@@ -475,7 +646,7 @@
             legend: { display: false }
           },
           scales: {
-            y: { title: { display: true, text: 'GHI (MJ/m²)' }, min: Math.min(...ghiMJ), max: Math.max(...ghiMJ) }
+            y: { title: { display: true, text: `GHI (${unitLabel})` }, min: Math.min(...ghiMJ), max: Math.max(...ghiMJ) }
           }
         },
         plugins: [verticalBarLabel]
@@ -506,7 +677,7 @@
       const rawMJ = [];
       for (let i = 0; i < hourlyTime.length && rawIso.length < hoursToShow; i++) {
         rawIso.push(hourlyTime[i]);
-        rawMJ.push(+((hourlySW[i] || 0) * 0.0036).toFixed(3));
+        rawMJ.push(+((hourlySW[i] || 0) * 0.0036 * unitFactor).toFixed(3));
       }
 
       // Trim leading and trailing zeros (keep middle nights).
@@ -538,7 +709,7 @@
         data: {
           labels: hLabels,
           datasets: [{
-            label: 'Hourly GHI (MJ/m²)',
+            label: `Hourly GHI (${unitLabel})`,
             data: hGhiMJ,
             backgroundColor: hBg,
             borderColor: hBorder,
@@ -558,12 +729,12 @@
             legend: { display: false },
             title: {
               display: true,
-              text: `96-hour total: ${hTotalMJ.toFixed(2)} MJ/m²`
+              text: `96-hour total: ${hTotalMJ.toFixed(2)} ${unitLabel}`
             }
           },
           scales: {
             x: { ticks: { autoSkip: true, maxRotation: 0 } },
-            y: { title: { display: true, text: 'GHI (MJ/m²)' }, min: Math.min(...hGhiMJ), max: Math.max(...hGhiMJ) }
+            y: { title: { display: true, text: `GHI (${unitLabel})` }, min: Math.min(...hGhiMJ), max: Math.max(...hGhiMJ) }
           }
         },
         plugins: [verticalBarLabel]
@@ -662,7 +833,19 @@
       }
     }
 
-    document.getElementById('refreshBtn').addEventListener('click', fetchForecast);
+    document.getElementById('refreshBtn').addEventListener('click', () => {
+      const parts = document.getElementById('coordInput').value.split(',');
+      const newLat = (parts[0] || '').trim();
+      const newLon = (parts[1] || '').trim();
+      if (newLat && newLon && (newLat !== latitude || newLon !== longitude)) {
+        const next = new URLSearchParams(location.search);
+        next.set('latitude', newLat);
+        next.set('longitude', newLon);
+        location.search = next.toString();
+        return;
+      }
+      fetchForecast();
+    });
     fetchForecast();
   </script>
 
