@@ -367,23 +367,23 @@
 
   <div id="content" class="hidden">
     <details class="collapsible" open>
+      <summary><h2 id="hourlyHeading">Hourly GHI</h2></summary>
+      <div class="chart-wrap"><canvas id="hourlyGhiChart"></canvas></div>
+    </details>
+
+    <details class="collapsible" open>
       <summary><h2>Daily Global Horizontal Irradiation (GHI)</h2></summary>
       <div class="chart-wrap"><canvas id="ghiChart"></canvas></div>
     </details>
 
     <details class="collapsible" open>
-      <summary><h2>Hourly GHI — Yesterday through Day-After-Tomorrow (96 h)</h2></summary>
-      <div class="chart-wrap"><canvas id="hourlyGhiChart"></canvas></div>
+      <summary><h2>Daily Temperature Range</h2></summary>
+      <div class="chart-wrap"><canvas id="tempChart"></canvas></div>
     </details>
 
     <details class="collapsible" open>
       <summary><h2>Sunshine Duration &amp; UV Index Max</h2></summary>
       <div class="chart-wrap"><canvas id="sunUvChart"></canvas></div>
-    </details>
-
-    <details class="collapsible" open>
-      <summary><h2>Daily Temperature Range</h2></summary>
-      <div class="chart-wrap"><canvas id="tempChart"></canvas></div>
     </details>
 
     <details class="collapsible">
@@ -426,6 +426,7 @@
     const unitFactor = unit === 'kwh' ? (1 / 3.6) : 1;
     const unitLabel = unit === 'kwh' ? 'kWh/m²' : 'MJ/m²';
     const forecastDays = qs.get('forecast_days') || '14';
+    const forecastHours = qs.get('forecast_hours') || '72';
     const currentTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
     const API_URL = `https://api.open-meteo.com/v1/forecast?latitude=${encodeURIComponent(latitude)}&longitude=${encodeURIComponent(longitude)}&daily=shortwave_radiation_sum,sunshine_duration,uv_index_max,temperature_2m_max,temperature_2m_min&hourly=shortwave_radiation&timezone=${encodeURIComponent(currentTz)}&forecast_days=${forecastDays}&past_days=1`;
 
@@ -605,12 +606,18 @@
       daysSwitchQs.set('forecast_days', otherDays);
       const daysSwitchHref = `${location.pathname}?${daysSwitchQs.toString()}`;
 
+      const otherHours = forecastHours === '72' ? '96' : '72';
+      const hoursSwitchQs = new URLSearchParams(location.search);
+      hoursSwitchQs.set('forecast_hours', otherHours);
+      const hoursSwitchHref = `${location.pathname}?${hoursSwitchQs.toString()}`;
+
       document.getElementById('metaLine').innerHTML =
         `<div><strong>Timezone:</strong> ${tz}${tzAbbr ? ` (${tzAbbr})` : ''}, UTC offset ${offset} s</div>` +
         `<div><strong>Elevation:</strong> ${elev}</div>` +
         `<div><strong>Grid:</strong> ${gridValue}</div>` +
         `<div><strong>Unit:</strong> ${unitLabel} · <a href="${unitSwitchHref}">switch to ${otherUnitLabel}</a></div>` +
-        `<div><strong>Forecast Days:</strong> ${forecastDays} · <a href="${daysSwitchHref}">switch to ${otherDays}</a></div>`;
+        `<div><strong>Forecast Days:</strong> ${forecastDays} · <a href="${daysSwitchHref}">switch to ${otherDays}</a></div>` +
+        `<div><strong>Forecast Hours:</strong> ${forecastHours} · <a href="${hoursSwitchHref}">switch to ${otherHours}</a></div>`;
 
       document.getElementById('content').classList.remove('hidden');
 
@@ -655,7 +662,8 @@
       const hourly = json.hourly || {};
       const hourlyTime = hourly.time || [];
       const hourlySW = hourly.shortwave_radiation || [];
-      const hoursToShow = 96;
+      const hoursToShow = Math.max(1, parseInt(forecastHours, 10) || 72);
+      document.getElementById('hourlyHeading').textContent = `Hourly GHI — ${hoursToShow} h from yesterday`;
       const fmtHour = new Intl.DateTimeFormat('en-GB', {
         hour: '2-digit', minute: '2-digit', hour12: false
       });
@@ -729,7 +737,7 @@
             legend: { display: false },
             title: {
               display: true,
-              text: `96-hour total: ${hTotalMJ.toFixed(2)} ${unitLabel}`
+              text: `${hoursToShow}-hour total: ${hTotalMJ.toFixed(2)} ${unitLabel}`
             }
           },
           scales: {
